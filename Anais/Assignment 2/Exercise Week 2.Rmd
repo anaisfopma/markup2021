@@ -1,0 +1,155 @@
+---
+title: "Exercise Week 2"
+output: html_document
+---
+
+# Background information
+Deuterium labelling is a technique commonly used in biomedical research to estimate the lifespan of cells in terms of, for example, their proliferation rate and their death rate. In deuterium-labelling studies, subjects are administered deuterium-labelled water (D2O) for a given period of time. This period of time is the labelling phase of the experiment, and typically consists of several weeks. When cells divide, deuterium is incorporated into the newly synthesized DNA strands of the cells. As a consequence, the level of deuterium enrichment (which is the fraction of DNA that is labelled with deuterium) can be measured. Parameters such as production or death rates can then be estimated by transforming the data and using the least squares approach. 
+
+# Aim
+The goal is to compare the performance of three different transformations in terms of absolute bias for the parameter we are interested in (the proliferation rate p). These transformations are: the arcsine transformation, square root transformation, and log transformation.
+
+# Least squares estimation
+In order to obtain the parameter estimates, we will first need to define the least squares function below.
+```{r}
+# Load required package
+library(deSolve)
+
+# Make the function for the least squares approach
+LS.function <- function(tf){
+  
+  # Create an empty storage for the estimates of p 
+  estimates <- matrix(0, 1, n.sim)
+  
+  # Put the estimation process in a for loop to run it nsim times 
+  for(x in 1:n.sim){
+    
+    # simulate data
+    out <- ode(y = c(L = 0), times = time.sim, func = model, parms = c(p,tau))
+    
+    # extract just the second column from this simulated data set
+    data.simulated <- out[,2]  
+    
+    # add noise
+    noise <- rnorm(10,0,p/10) 
+    data.sim.noise <- data.simulated + noise
+    
+    # make the cost function with the least squares approach 
+    cost.LS <- function(psi){
+      
+      out <- ode(y = c (L = 0), times = time.sim, func = model, parms = c(p = exp(psi[1]), tau))
+      data_pred <- out[ ,2]
+      
+      if(tf == "arcsine") out1<-ifelse(data_pred<0,0,asin(sqrt(data_pred)))
+      if(tf == "sqroot") out1<-ifelse(data_pred<0,0,sqrt(data_pred))
+      if(tf == "log") out1<-ifelse(data_pred<=0,-10**(-10),log(data_pred))
+      
+      out_cost <- (data.fit - out1) 
+      
+      SSR <- sum(out_cost^2)
+      return(SSR)
+    }
+    
+    # transform the data 
+    if(tf == "arcsine") data.fit <- ifelse(data.sim.noise<0,0,asin(sqrt(data.sim.noise)))
+    if(tf == "sqroot") data.fit <- ifelse(data.sim.noise<0,0,sqrt(data.sim.noise))
+    if(tf == "log") data.fit <- ifelse(data.sim.noise<=0, -10**(-10),log(data.sim.noise))
+
+    
+    # optimization
+    estim <- nlminb(c(-6), cost.LS, upper = c(0), lower = c(-15))
+    
+    # get the parameter estimate by taking the exponent 
+    prm.LS <- exp(estim$par)
+    
+    # store each parameter estimate in the empty matrix we created before 
+    estimates[ ,x] <- prm.LS  
+    
+    }
+
+  # calculate the absolute bias
+  bias <- abs(p - mean(estimates[1, ]))
+  print(bias)
+
+}
+
+
+```
+
+# Simulation
+The data simulated are those of a 9 week-labeling experiment, meaning that the end of deuterium administration is at tau = 63. For simplicity it is assumed that U(t) is an on/off function which is equal to 1 between 0 and tau and equal to 0 otherwise. It is also assumed that the amplification factor c = 1. The data are based on the following measurement timepoints in number of days: 0, 7, 14, 28, 42, 63, 70, 84, 105, 126. The following model is considered:
+
+
+For $\\t \leq \tau: L’ = p–p*L$
+
+For $\\t > \tau: L’= - p*L$
+
+
+We specify all this information in order to run the simulations.
+```{r}
+# Specify the model we use to generate the data
+model <- function(t,state,pars){
+  with(as.list(c(state,pars)),{
+    dL <- ifelse(t<=tau,p -  p* L, -p*L)
+    return(list(c(dL)))
+  })
+}
+
+# Specify number of simulations
+n.sim <- 100
+
+# Specify the timepoints 
+time.sim <- c(0,7, 14, 28, 42, 63, 70, 84, 105, 126)
+
+# Define tau
+tau <- 63
+
+# Define p
+p <- 0.01
+```
+
+Now, we can run the simulations for each transformation. We will make sure to set a seed every time we run the function.
+
+## Arcsine transformation
+```{r, warning=FALSE}
+set.seed(987)
+arcsine <- LS.function(tf = "arcsine")
+```
+
+## Square root transformation
+```{r, warning=FALSE}
+set.seed(987)
+sqroot <- LS.function(tf = "sqroot")
+```
+
+## Log transformation 
+```{r, warning=FALSE}
+set.seed(987)
+log <- LS.function(tf = "log")
+```
+
+# Results
+```{r}
+cbind(arcsine, sqroot, log)
+```
+The results show that the absolute bias is the smallest for the log transformation, and the largest for the square root transformation.
+
+# Replication
+We can replicate the results by simply setting a different seed. After all, this ensures that different data are generated within the function. 
+```{r, warning=FALSE}
+set.seed(456)
+arcsine <- LS.function(tf = "arcsine")
+
+set.seed(456)
+sqroot <- LS.function(tf = "sqroot")
+
+set.seed(456)
+log <- LS.function(tf = "log")
+
+cbind(arcsine, sqroot, log)
+```
+The results seem to correspond with the previous ones.
+
+```{r}
+sessionInfo()
+```
