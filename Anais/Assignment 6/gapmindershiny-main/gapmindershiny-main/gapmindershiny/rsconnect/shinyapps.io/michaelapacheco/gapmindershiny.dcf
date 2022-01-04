@@ -1,0 +1,11 @@
+name: gapmindershiny
+title:
+username:
+account: michaelapacheco
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 5390592
+bundleId: 5430796
+url: https://michaelapacheco.shinyapps.io/gapmindershiny/
+when: 1641239874.09323
+lastSyncTime: 1641239874.09323
